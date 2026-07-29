@@ -1,8 +1,9 @@
 import { rm } from 'node:fs/promises'
-import { Menu, ipcMain, session, type BrowserWindow, type IpcMainInvokeEvent } from 'electron'
+import { Menu, app, ipcMain, session, type BrowserWindow, type IpcMainInvokeEvent } from 'electron'
 import type { ShellState } from '../shared/types'
 import type { AccountViewManager } from './account-view'
 import type { AppTray } from './tray'
+import * as autostart from './autostart'
 import {
   addAccount,
   getConfig,
@@ -149,6 +150,31 @@ export function registerIpc(
       { label: 'Reload', click: () => views.reload(id) },
       { type: 'separator' },
       { label: 'Remove account…', click: () => win.webContents.send('shell:confirmRemove', id) },
+    ]).popup({ window: win })
+
+    return null
+  })
+
+  ipcMain.handle('shell:settingsMenu', (event) => {
+    if (!fromShell(event)) return null
+
+    Menu.buildFromTemplate([
+      {
+        label: 'Start at login',
+        type: 'checkbox',
+        checked: autostart.isEnabled(),
+        enabled: autostart.isSupported(),
+        click: (item) => {
+          if (!autostart.setEnabled(item.checked)) {
+            // Writing failed — put the tick back so the UI never claims a
+            // setting that did not take.
+            item.checked = autostart.isEnabled()
+          }
+        },
+      },
+      { type: 'separator' },
+      { label: `WhatsApp Multi ${app.getVersion()}`, enabled: false },
+      { label: 'Quit', click: () => app.quit() },
     ]).popup({ window: win })
 
     return null

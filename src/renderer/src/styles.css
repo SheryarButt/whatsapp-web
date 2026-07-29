@@ -128,6 +128,27 @@ body {
   border-color: var(--accent);
 }
 
+/* Pinned right; the tab strip scrolls independently of it. */
+.tab-settings {
+  align-self: center;
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tab-settings:hover {
+  color: var(--text);
+  background: #16222b;
+}
+
 .badge {
   min-width: 17px;
   height: 17px;

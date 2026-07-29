@@ -24,6 +24,9 @@ const api = {
   /** Pops the native per-tab menu (rename / reload / remove). */
   tabMenu: (id: string): Promise<null> => ipcRenderer.invoke('shell:tabMenu', id),
 
+  /** Pops the native app menu (start at login, version, quit). */
+  settingsMenu: (): Promise<null> => ipcRenderer.invoke('shell:settingsMenu'),
+
   processIds: (): Promise<Record<string, number> | null> => ipcRenderer.invoke('shell:processIds'),
 
   /** Main asks us to open the inline rename editor for a tab. */

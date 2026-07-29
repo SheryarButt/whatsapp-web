@@ -10,6 +10,7 @@ import { addAccount, flushConfig, getConfig, loadConfig, setActiveAccount } from
 import { registerIpc } from './ipc'
 import { pruneOrphanAccountDirs } from './prune'
 import { cleanUserAgent } from './user-agent'
+import { launchedHidden } from './autostart'
 
 // ---------------------------------------------------------------------------
 // Pre-ready configuration. Everything here must run before app.whenReady().
@@ -60,8 +61,6 @@ function createWindow(): BrowserWindow {
       nodeIntegration: false,
     },
   })
-
-  win.on('ready-to-show', () => win.show())
 
   const rendererUrl = process.env['ELECTRON_RENDERER_URL']
   if (rendererUrl) {
@@ -162,6 +161,14 @@ function onReady(): void {
 
   const api = registerIpc(mainWindow, views, hasTray ? tray : null)
   activate = api.activate
+
+  // Started by the autostart entry: stay in the tray rather than stealing focus
+  // at login. Without a tray there would be no way back, so show it anyway.
+  const startHidden = launchedHidden() && hasTray
+  mainWindow.once('ready-to-show', () => {
+    if (startHidden) console.log('[autostart] launched hidden; use the tray to open')
+    else mainWindow?.show()
+  })
 
   /**
    * Close-to-tray. Accounts must stay alive for notifications to arrive, so

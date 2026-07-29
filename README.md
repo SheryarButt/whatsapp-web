@@ -6,8 +6,9 @@ with native notifications and unread badges.
 Built on Electron 43. Linux-first (developed and verified on Ubuntu 26.04 / Wayland / GNOME 50).
 
 > **Status: early.** Accounts, notifications, unread badges, downloads, the right-click menu,
-> the tray and packaging all work and are verified. Auto-update is **not built yet**; calls
-> and screen share are wired but unverified — see [Feature status](#feature-status).
+> the tray, start-at-login and packaging all work and are verified. Auto-update is **not built
+> yet**; calls and screen share are wired but unverified — see
+> [Feature status](#feature-status).
 
 ---
 
@@ -79,6 +80,20 @@ The `dev` and `start` scripts unset it. If you launch Electron directly, do the 
 ```bash
 env -u ELECTRON_RUN_AS_NODE ./node_modules/.bin/electron .
 ```
+
+### Start at login
+
+**Settings (⚙ in the tab bar) → Start at login**, or the same entry in the tray menu.
+
+It launches with `--hidden`, so at login the app comes up in the tray rather than stealing
+focus — accounts still connect and notifications still arrive. If the tray failed to
+initialise the window is shown anyway, so the app can never start unreachable.
+
+`app.setLoginItemSettings()` is **not** used: it is an empty function on Linux, so enabling
+autostart through it appears to succeed and silently does nothing. Instead an XDG autostart
+entry is written to `~/.config/autostart/com.sheryar.WhatsAppMulti.desktop`. Disabling
+removes the file, and entries disabled by a desktop settings editor (`Hidden=true` or
+`X-GNOME-Autostart-enabled=false`) are read back correctly rather than reported as enabled.
 
 ---
 
@@ -160,6 +175,7 @@ A few choices worth knowing about, because the obvious alternatives are wrong:
 | Reorder accounts | ❌ Not implemented |
 | Packaging | ✅ `--dir` build verified: runs, tray icon resolves, asar excludes sources |
 | App / tray / notification icon | ✅ Generated set + desktop entry; startup verifies the chain |
+| Start at login | ✅ XDG autostart entry, launches hidden to the tray |
 | Auto-update | ❌ Not implemented |
 
 Notification **inline reply** is not possible on this target: GNOME's notification daemon

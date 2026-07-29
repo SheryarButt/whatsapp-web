@@ -1,5 +1,6 @@
 import { Menu, Tray, app, nativeImage, type BrowserWindow } from 'electron'
 import { iconPath } from './icons'
+import * as autostart from './autostart'
 import type { AccountRecord, UnreadReport } from '../shared/types'
 
 export interface TrayState {
@@ -98,6 +99,16 @@ export class AppTray {
         : [{ label: 'No accounts', enabled: false as const }]),
       { type: 'separator' },
       { label: 'Show / hide window', click: () => this.toggleWindow() },
+      {
+        label: 'Start at login',
+        type: 'checkbox',
+        checked: autostart.isEnabled(),
+        enabled: autostart.isSupported(),
+        click: (item) => {
+          autostart.setEnabled(item.checked)
+          item.checked = autostart.isEnabled()
+        },
+      },
       { label: 'Quit', click: () => app.quit() },
     ])
 

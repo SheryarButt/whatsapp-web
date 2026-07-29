@@ -136,6 +136,15 @@ export default function App(): React.JSX.Element {
         <button type="button" className="tab-add" title="Add account" onClick={onAdd}>
           +
         </button>
+
+        <button
+          type="button"
+          className="tab-settings"
+          title="Settings"
+          onClick={() => void window.shell.settingsMenu()}
+        >
+          ⚙
+        </button>
       </nav>
 
       {state.accounts.length === 0 && (
