@@ -33,12 +33,38 @@ function Badge({ unread }: { unread: UnreadReport }): React.JSX.Element | null {
   return null
 }
 
+/** Inline rename editor. Native prompt() does not work in Electron renderers. */
+function RenameField({
+  account,
+  onDone,
+}: {
+  account: AccountRecord
+  onDone: (name: string | null) => void
+}): React.JSX.Element {
+  const [value, setValue] = useState(account.name)
+  return (
+    <input
+      className="rename"
+      autoFocus
+      value={value}
+      title="Enter to save, Escape to cancel"
+      onChange={(e) => setValue(e.target.value)}
+      onBlur={() => onDone(value)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') onDone(value)
+        else if (e.key === 'Escape') onDone(null)
+      }}
+    />
+  )
+}
+
 export default function App(): React.JSX.Element {
   const [state, setState] = useState<ShellState>({
     accounts: [],
     activeAccountId: null,
     unread: {},
   })
+  const [renamingId, setRenamingId] = useState<string | null>(null)
 
   useEffect(() => {
     void window.shell.getState().then((s) => s && setState(s))
@@ -64,24 +90,38 @@ export default function App(): React.JSX.Element {
     <div className="app">
       <nav className="rail">
         <div className="rail-scroll">
-          {state.accounts.map((account) => (
-            <button
-              key={account.id}
-              type="button"
-              className={`avatar${account.id === state.activeAccountId ? ' active' : ''}`}
-              style={{ color: account.color }}
-              title={account.name}
-              onClick={() => void window.shell.activateAccount(account.id).then(apply)}
-              onContextMenu={(e) => {
-                e.preventDefault()
-                onRemove(account)
-              }}
-            >
-              <span className="ring" />
-              {initials(account.name)}
-              <Badge unread={state.unread[account.id] ?? EMPTY_UNREAD} />
-            </button>
-          ))}
+          {state.accounts.map((account) =>
+            renamingId === account.id ? (
+              <RenameField
+                key={account.id}
+                account={account}
+                onDone={(name) => {
+                  setRenamingId(null)
+                  if (name !== null && name.trim() && name !== account.name) {
+                    void window.shell.renameAccount(account.id, name.trim()).then(apply)
+                  }
+                }}
+              />
+            ) : (
+              <button
+                key={account.id}
+                type="button"
+                className={`avatar${account.id === state.activeAccountId ? ' active' : ''}`}
+                style={{ color: account.color }}
+                title={`${account.name}\nDouble-click to rename · Right-click to remove`}
+                onClick={() => void window.shell.activateAccount(account.id).then(apply)}
+                onDoubleClick={() => setRenamingId(account.id)}
+                onContextMenu={(e) => {
+                  e.preventDefault()
+                  onRemove(account)
+                }}
+              >
+                <span className="ring" />
+                {initials(account.name)}
+                <Badge unread={state.unread[account.id] ?? EMPTY_UNREAD} />
+              </button>
+            ),
+          )}
         </div>
 
         <button type="button" className="add" title="Add account" onClick={onAdd}>

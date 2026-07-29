@@ -1,5 +1,6 @@
-import type { Session } from 'electron'
+import { desktopCapturer, type Session } from 'electron'
 import { WHATSAPP_HOST } from '../shared/types'
+import { attachDownloadHandler } from './downloads'
 import { cleanUserAgent } from './user-agent'
 
 /**
@@ -49,6 +50,37 @@ export function hardenSession(ses: Session): void {
   })
 
   configureSpellcheck(ses)
+  configureScreenShare(ses)
+  attachDownloadHandler(ses)
+}
+
+/**
+ * Screen share during a WhatsApp call. Without a handler, getDisplayMedia()
+ * simply fails.
+ *
+ * On Wayland the real picker is xdg-desktop-portal's, which the compositor
+ * draws itself — and Electron's docs note desktopCapturer returns only a single
+ * source under PipeWire. So we do NOT build a source-picker UI here; we hand
+ * back the source the portal produced. (`useSystemPicker` is macOS-only and
+ * would be a no-op on Linux.)
+ */
+function configureScreenShare(ses: Session): void {
+  ses.setDisplayMediaRequestHandler((_request, callback) => {
+    desktopCapturer
+      .getSources({ types: ['screen', 'window'] })
+      .then((sources) => {
+        if (sources.length === 0) {
+          // Empty callback denies the request.
+          callback({})
+          return
+        }
+        callback({ video: sources[0] })
+      })
+      .catch((err) => {
+        console.warn('[screenshare] source enumeration failed:', err)
+        callback({})
+      })
+  })
 }
 
 /**

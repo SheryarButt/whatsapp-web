@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { WebContentsView, session, type BrowserWindow } from 'electron'
+import { WebContentsView, app, session, type BrowserWindow } from 'electron'
+import { attachContextMenu } from './context-menu'
 import { RAIL_WIDTH, WHATSAPP_URL, type AccountRecord } from '../shared/types'
 import { pinNavigation } from './navigation'
 import { accountSessionDir } from './paths'
@@ -84,6 +85,9 @@ export class AccountViewManager {
     view.setBackgroundColor('#111b21')
 
     pinNavigation(view.webContents)
+    // Embedded content gets no context menu from Electron, so right-click
+    // copy/paste and spellcheck suggestions have to be built by hand.
+    attachContextMenu(view.webContents, !app.isPackaged)
 
     const label = `${account.name} (${account.id.slice(0, 8)})`
     view.webContents.on('did-finish-load', () => {

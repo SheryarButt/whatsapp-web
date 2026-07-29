@@ -5,9 +5,9 @@ with native notifications and unread badges.
 
 Built on Electron 43. Linux-first (developed and verified on Ubuntu 26.04 / Wayland / GNOME 50).
 
-> **Status: early.** Accounts, notifications and unread badges work and are verified.
-> Tray, packaging, screen share and voice/video calls are **not built yet** — see
-> [Feature status](#feature-status).
+> **Status: early.** Accounts, notifications, unread badges, downloads and the right-click
+> menu work and are verified. Tray, packaging and auto-update are **not built yet**, and
+> calls / screen share are wired but unverified — see [Feature status](#feature-status).
 
 ---
 
@@ -27,7 +27,7 @@ on Electron APIs that are deprecated or discouraged.
 - `fonts-noto-color-emoji` — otherwise emoji render as tofu
 
 Each running account consumes one of WhatsApp's **4 linked-device slots for that phone
-number**. Multiple accounts means multiple *different* numbers; pairing the same number
+number**. Multiple accounts mean multiple *different* numbers; pairing the same number
 twice costs two of its four slots.
 
 ---
@@ -66,7 +66,7 @@ env -u ELECTRON_RUN_AS_NODE ./node_modules/.bin/electron .
 One `BrowserWindow` renders the account rail; each account is a separate `WebContentsView`
 laid over it.
 
-```
+```text
 BrowserWindow ── renderer: account rail (React)
    └─ contentView
         ├─ WebContentsView  session=Accounts/<uuid-a>  → web.whatsapp.com
@@ -117,14 +117,16 @@ A few choices worth knowing about, because the obvious alternatives are wrong:
 | Per-account notification prefix | ✅ Applied only when >1 account |
 | Unread badges (rail + launcher) | ✅ Verified against real non-zero counts |
 | Muted vs. direct unread split | ✅ Muted shows a dot, excluded from launcher count |
+| Right-click menu (copy/paste/links/images) | ✅ Built by hand — Electron gives embedded content none |
+| Spellcheck suggestions | ✅ Built from the context-menu event + `replaceMisspelling()` |
+| Download handling | ✅ Auto-saves to `~/Downloads`, never clobbers, toast reveals the file |
+| Rename accounts | ✅ Double-click the rail icon (reorder still missing) |
 | Media, emoji, drag-and-drop upload | ⚪ Should work (Chromium default) — not yet verified |
 | Voice message recording | ⚠️ **Untested.** Crashes the closest prior art (altus#333) |
 | Voice / video calls | ⚪ Permissions granted; not yet verified |
-| Screen share | ❌ Not implemented — needs `setDisplayMediaRequestHandler` |
+| Screen share | ⚪ Handler wired; **not yet verified** (needs a live call) |
 | Tray icon | ❌ Not implemented |
-| Spellcheck context menu | ❌ Not implemented (spellcheck itself is enabled) |
-| Download handling | ❌ No `will-download` handler yet |
-| Rename / reorder accounts | ❌ Not implemented (remove is right-click) |
+| Reorder accounts | ❌ Not implemented |
 | Packaging (.deb / AppImage) | ❌ **No electron-builder config yet** — `npm run dist` will fail |
 | Auto-update | ❌ Not implemented |
 
@@ -136,7 +138,7 @@ click routing works).
 
 ## Data layout
 
-```
+```text
 ~/.config/WhatsAppMulti/          # -dev suffix when unpackaged
   config.json                     # account list, atomic writes
   Accounts/<uuid>/                # one Chromium session tree per account
