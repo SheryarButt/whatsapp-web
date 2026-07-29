@@ -2,6 +2,7 @@ import { rm } from 'node:fs/promises'
 import { ipcMain, session, type BrowserWindow, type IpcMainInvokeEvent } from 'electron'
 import type { ShellState } from '../shared/types'
 import type { AccountViewManager } from './account-view'
+import type { AppTray } from './tray'
 import {
   addAccount,
   getConfig,
@@ -22,13 +23,34 @@ export function shellState(): ShellState {
   }
 }
 
-export function registerIpc(win: BrowserWindow, views: AccountViewManager): void {
+export interface IpcApi {
+  broadcast: () => void
+  activate: (accountId: string) => void
+}
+
+export function registerIpc(
+  win: BrowserWindow,
+  views: AccountViewManager,
+  tray: AppTray | null,
+): IpcApi {
   const broadcast = (): void => {
-    if (!win.isDestroyed()) win.webContents.send('shell:state', shellState())
+    const state = shellState()
+    if (!win.isDestroyed()) win.webContents.send('shell:state', state)
     // Account count decides whether notifications get a name prefix, so labels
     // are recomputed whenever the account set changes.
     views.pushAllLabels()
-    setLauncherBadge(totalDirect(getConfig().accounts.map((a) => a.id)))
+    const total = totalDirect(state.accounts.map((a) => a.id))
+    setLauncherBadge(total)
+    tray?.update({ ...state, total })
+  }
+
+  const activate = (accountId: string): void => {
+    const account = getConfig().accounts.find((a) => a.id === accountId)
+    if (!account) return
+    views.ensure(account)
+    setActiveAccount(accountId)
+    views.setActive(accountId)
+    broadcast()
   }
 
   /**
@@ -57,12 +79,8 @@ export function registerIpc(win: BrowserWindow, views: AccountViewManager): void
 
   ipcMain.handle('shell:activateAccount', (event, id: unknown) => {
     if (!fromShell(event) || typeof id !== 'string') return null
-    const account = getConfig().accounts.find((a) => a.id === id)
-    if (!account) return null
-    views.ensure(account)
-    setActiveAccount(id)
-    views.setActive(id)
-    broadcast()
+    if (!getConfig().accounts.some((a) => a.id === id)) return null
+    activate(id)
     return shellState()
   })
 
@@ -147,11 +165,10 @@ export function registerIpc(win: BrowserWindow, views: AccountViewManager): void
     const report = sanitize(payload)
     if (!setUnread(accountId, report)) return
 
-    const ids = getConfig().accounts.map((a) => a.id)
-    setLauncherBadge(totalDirect(ids))
-    if (!win.isDestroyed()) win.webContents.send('shell:state', shellState())
+    // Full broadcast so the rail, launcher badge and tray all stay in sync.
+    broadcast()
 
-    const total = totalDirect(ids)
+    const total = totalDirect(getConfig().accounts.map((a) => a.id))
     console.log(
       `[unread] ${accountId.slice(0, 8)} status=${report.status} ` +
         `direct=${report.direct} muted=${report.muted} marked=${report.markedUnread} ` +
@@ -177,9 +194,9 @@ export function registerIpc(win: BrowserWindow, views: AccountViewManager): void
     win.show()
     win.focus()
 
-    setActiveAccount(accountId)
-    views.setActive(accountId)
-    broadcast()
+    activate(accountId)
     console.log(`[notify] click -> activated ${accountId.slice(0, 8)}`)
   })
+
+  return { broadcast, activate }
 }

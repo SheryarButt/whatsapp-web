@@ -6,8 +6,8 @@ with native notifications and unread badges.
 Built on Electron 43. Linux-first (developed and verified on Ubuntu 26.04 / Wayland / GNOME 50).
 
 > **Status: early.** Accounts, notifications, unread badges, downloads and the right-click
-> menu work and are verified. Tray, packaging and auto-update are **not built yet**, and
-> calls / screen share are wired but unverified — see [Feature status](#feature-status).
+> menu, tray and downloads work and are verified. Auto-update is **not built yet**, and
+> packaging / calls / screen share are wired but unverified — see [Feature status](#feature-status).
 
 ---
 
@@ -125,9 +125,9 @@ A few choices worth knowing about, because the obvious alternatives are wrong:
 | Voice message recording | ⚠️ **Untested.** Crashes the closest prior art (altus#333) |
 | Voice / video calls | ⚪ Permissions granted; not yet verified |
 | Screen share | ⚪ Handler wired; **not yet verified** (needs a live call) |
-| Tray icon | ❌ Not implemented |
+| Tray icon + close-to-tray | ✅ Verified registered with `org.kde.StatusNotifierWatcher` |
 | Reorder accounts | ❌ Not implemented |
-| Packaging (.deb / AppImage) | ❌ **No electron-builder config yet** — `npm run dist` will fail |
+| Packaging (.deb / AppImage) | ⚪ `electron-builder.yml` written; build not yet run |
 | Auto-update | ❌ Not implemented |
 
 Notification **inline reply** is not possible on this target: GNOME's notification daemon

@@ -3,6 +3,7 @@ import { app, BrowserWindow } from 'electron'
 import { RAIL_WIDTH } from '../shared/types'
 import { AccountViewManager } from './account-view'
 import { clearLauncherBadge } from './badge'
+import { AppTray } from './tray'
 import { addAccount, flushConfig, getConfig, loadConfig, setActiveAccount } from './config-store'
 import { registerIpc } from './ipc'
 import { pruneOrphanAccountDirs } from './prune'
@@ -34,6 +35,8 @@ if (process.platform === 'linux') {
 }
 
 let mainWindow: BrowserWindow | null = null
+/** Set on before-quit so close-to-tray knows a real quit is in progress. */
+let isQuitting = false
 let views: AccountViewManager | null = null
 
 function createWindow(): BrowserWindow {
@@ -92,6 +95,7 @@ function bootstrap(): void {
   })
 
   app.on('before-quit', () => {
+    isQuitting = true
     flushConfig()
     // Otherwise a stale count sticks to the dock icon after we exit.
     clearLauncherBadge()
@@ -112,7 +116,27 @@ function onReady(): void {
     if (accounts.length < 2) return ''
     return accounts.find((a) => a.id === accountId)?.name ?? ''
   })
-  registerIpc(mainWindow, views)
+  // The tray's activate handler is only available after registerIpc returns, so
+  // it is routed through a mutable reference.
+  let activate: (accountId: string) => void = () => {}
+  const tray = new AppTray(mainWindow, (id) => activate(id))
+  const hasTray = tray.init()
+
+  const api = registerIpc(mainWindow, views, hasTray ? tray : null)
+  activate = api.activate
+
+  /**
+   * Close-to-tray. Accounts must stay alive for notifications to arrive, so
+   * closing the window hides it instead of quitting — but ONLY when there is a
+   * tray to restore it from, otherwise the app would become unreachable.
+   */
+  if (hasTray) {
+    mainWindow.on('close', (event) => {
+      if (isQuitting || !mainWindow) return
+      event.preventDefault()
+      mainWindow.hide()
+    })
+  }
 
   // Must run before any view is created: session.fromPath() re-creates whatever
   // directory it is handed, so an orphan can only be swept while no Session
@@ -131,6 +155,7 @@ function onReady(): void {
     views.ensure(account)
   }
   views.setActive(getConfig().activeAccountId)
+  api.broadcast()
 
   mainWindow.on('closed', () => {
     views?.destroyAll()

@@ -1,0 +1,64 @@
+appId: com.sheryar.WhatsAppMulti
+productName: WhatsApp Multi
+copyright: MIT
+
+directories:
+  buildResources: build
+  output: dist
+
+files:
+  - out/**
+  - package.json
+  - '!src/*'
+  - '!scripts/*'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json,*.tsbuildinfo}'
+  - '!{.env,.env.*,.eslintrc,.editorconfig}'
+
+# The tray resolves icons from process.resourcesPath when packaged.
+extraResources:
+  - from: build/icons
+    to: icons
+
+# No native modules, so skip the rebuild step entirely.
+npmRebuild: false
+
+linux:
+  # .deb is primary: its post-install ships an AppArmor profile and fixes
+  # chrome-sandbox, so the Chromium sandbox stays ON. AppImage is the
+  # convenience build and runs UNSANDBOXED on Ubuntu 24.04+ because
+  # apparmor_restrict_unprivileged_userns blocks user namespaces and a
+  # FUSE-mounted chrome-sandbox can never be setuid.
+  target:
+    - deb
+    - AppImage
+  category: Network
+  maintainer: Sheryar <sheryar@kubermatic.com>
+  executableName: whatsapp-multi
+  icon: build/icons
+  synopsis: Multi-account WhatsApp Web client
+  description: >-
+    Run several fully-isolated WhatsApp Web accounts in a single window,
+    with native notifications, unread badges and a tray icon.
+
+deb:
+  # NB: `depends` REPLACES electron-builder's defaults rather than merging, so
+  # the stock list is repeated here. Dropping one of these yields a package that
+  # installs cleanly and then fails to start.
+  depends:
+    - libgtk-3-0
+    - libnotify4
+    - libnss3
+    - libxss1
+    - libxtst6
+    - xdg-utils
+    - libatspi2.0-0
+    - libuuid1
+    - libsecret-1-0
+  recommends:
+    # Ubuntu 26.04 ships the ayatana fork, not the old libappindicator3-1.
+    - libayatana-appindicator3-1
+    - fonts-noto-color-emoji
+
+appImage:
+  artifactName: ${name}-${version}-${arch}.${ext}
