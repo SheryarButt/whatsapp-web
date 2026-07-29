@@ -1,0 +1,140 @@
+import { join } from 'node:path'
+import { app, BrowserWindow } from 'electron'
+import { RAIL_WIDTH } from '../shared/types'
+import { AccountViewManager } from './account-view'
+import { clearLauncherBadge } from './badge'
+import { addAccount, flushConfig, getConfig, loadConfig, setActiveAccount } from './config-store'
+import { registerIpc } from './ipc'
+import { pruneOrphanAccountDirs } from './prune'
+import { cleanUserAgent } from './user-agent'
+
+// ---------------------------------------------------------------------------
+// Pre-ready configuration. Everything here must run before app.whenReady().
+// ---------------------------------------------------------------------------
+
+// Keep dev experiments away from real logged-in accounts: a preload edit
+// restarts Electron, and schema experiments should not touch the real config.
+if (!app.isPackaged) {
+  app.setPath('userData', join(app.getPath('appData'), 'WhatsAppMulti-dev'))
+}
+
+// Without this, background accounts are silent — no notification ping and no
+// incoming-call ringtone, because a hidden view has received no user gesture.
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
+
+// NOTE: deliberately NOT setting webRTCIPHandlingPolicy. Any value other than
+// the default (notably 'disable_non_proxied_udp') makes WhatsApp calls hang
+// forever at "connecting" behind a bogus network error.
+
+// The single key behind the notification icon, Wayland app_id / X11 WM_CLASS,
+// taskbar grouping, and the launcher badge. Electron gives no error if unset;
+// four separate things just quietly break.
+if (process.platform === 'linux') {
+  app.setDesktopName('com.sheryar.WhatsAppMulti.desktop')
+}
+
+let mainWindow: BrowserWindow | null = null
+let views: AccountViewManager | null = null
+
+function createWindow(): BrowserWindow {
+  const win = new BrowserWindow({
+    width: 1280,
+    height: 860,
+    minWidth: RAIL_WIDTH + 480,
+    minHeight: 500,
+    show: false,
+    backgroundColor: '#111b21',
+    title: 'WhatsApp Multi',
+    webPreferences: {
+      preload: join(__dirname, '../preload/shell.cjs'),
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  })
+
+  win.on('ready-to-show', () => win.show())
+
+  const rendererUrl = process.env['ELECTRON_RENDERER_URL']
+  if (rendererUrl) {
+    void win.loadURL(rendererUrl)
+  } else {
+    void win.loadFile(join(__dirname, '../renderer/index.html'))
+  }
+
+  return win
+}
+
+/**
+ * app.quit() is asynchronous: on its own it does NOT stop this script, so a
+ * second instance would still reach whenReady, mint an account, create a
+ * session directory, and only then die — leaving orphaned dirs behind and
+ * racing the real instance's config writes. exit(0) stops immediately and
+ * deliberately skips before-quit so it cannot flush anything.
+ */
+if (!app.requestSingleInstanceLock()) {
+  app.exit(0)
+} else {
+  bootstrap()
+}
+
+function bootstrap(): void {
+  app.whenReady().then(onReady)
+
+  app.on('second-instance', () => {
+    if (!mainWindow) return
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.focus()
+  })
+
+  app.on('window-all-closed', () => {
+    app.quit()
+  })
+
+  app.on('before-quit', () => {
+    flushConfig()
+    // Otherwise a stale count sticks to the dock icon after we exit.
+    clearLauncherBadge()
+  })
+}
+
+function onReady(): void {
+  // Must happen before any view is created.
+  app.userAgentFallback = cleanUserAgent(app.userAgentFallback)
+
+  loadConfig()
+
+  mainWindow = createWindow()
+  // Prefix notifications with the account name only when there is more than one
+  // account — with a single account it would be pure noise.
+  views = new AccountViewManager(mainWindow, (accountId) => {
+    const { accounts } = getConfig()
+    if (accounts.length < 2) return ''
+    return accounts.find((a) => a.id === accountId)?.name ?? ''
+  })
+  registerIpc(mainWindow, views)
+
+  // Must run before any view is created: session.fromPath() re-creates whatever
+  // directory it is handed, so an orphan can only be swept while no Session
+  // object exists for it.
+  pruneOrphanAccountDirs()
+
+  const config = getConfig()
+
+  // First run: give the user something to scan a QR code into.
+  if (config.accounts.length === 0) {
+    const first = addAccount('Account 1')
+    setActiveAccount(first.id)
+  }
+
+  for (const account of getConfig().accounts) {
+    views.ensure(account)
+  }
+  views.setActive(getConfig().activeAccountId)
+
+  mainWindow.on('closed', () => {
+    views?.destroyAll()
+    views = null
+    mainWindow = null
+  })
+}

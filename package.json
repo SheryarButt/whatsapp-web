@@ -1,0 +1,34 @@
+{
+  "name": "whatsapp-multi",
+  "version": "0.1.0",
+  "description": "Multi-account WhatsApp Web desktop client",
+  "author": "Sheryar <sheryar@kubermatic.com>",
+  "license": "MIT",
+  "private": true,
+  "main": "./out/main/index.js",
+  "desktopName": "com.sheryar.WhatsAppMulti.desktop",
+  "scripts": {
+    "dev": "env -u ELECTRON_RUN_AS_NODE electron-vite dev",
+    "start": "env -u ELECTRON_RUN_AS_NODE electron-vite preview",
+    "build": "npm run typecheck && electron-vite build",
+    "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
+    "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
+    "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "pack:dir": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder --linux"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "43.2.0",
+    "electron-builder": "^26.0.12",
+    "electron-vite": "^5.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.2.6"
+  }
+}

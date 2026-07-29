@@ -1,0 +1,62 @@
+export interface AccountRecord {
+  id: string
+  name: string
+  color: string
+  createdAt: string
+}
+
+export interface AppConfig {
+  schemaVersion: number
+  accounts: AccountRecord[]
+  activeAccountId: string | null
+}
+
+/**
+ * 'db-absent' and 'error' exist so "we cannot determine the count" is never
+ * rendered as "you are all caught up". A WhatsApp storage migration would
+ * otherwise silently look like zero unread forever.
+ */
+export type UnreadStatus = 'ok' | 'db-absent' | 'error'
+
+export interface UnreadReport {
+  status: UnreadStatus
+  /** Unread messages in unarchived, unmuted chats. */
+  direct: number
+  /** Unread messages in unarchived but muted chats. */
+  muted: number
+  /** Chats manually flagged unread (WhatsApp stores a negative sentinel). */
+  markedUnread: number
+}
+
+export const EMPTY_UNREAD: UnreadReport = {
+  status: 'db-absent',
+  direct: 0,
+  muted: 0,
+  markedUnread: 0,
+}
+
+export interface ShellState {
+  accounts: AccountRecord[]
+  activeAccountId: string | null
+  unread: Record<string, UnreadReport>
+}
+
+export const CURRENT_SCHEMA_VERSION = 1
+
+export const WHATSAPP_URL = 'https://web.whatsapp.com/'
+export const WHATSAPP_HOST = 'web.whatsapp.com'
+
+/** Width of the account rail, in CSS px. The shell renderer draws it; account
+ *  views are inset by exactly this much. */
+export const RAIL_WIDTH = 64
+
+export const ACCOUNT_COLORS = [
+  '#25D366',
+  '#34B7F1',
+  '#F59E0B',
+  '#EF4444',
+  '#A855F7',
+  '#EC4899',
+  '#14B8A6',
+  '#6366F1',
+] as const

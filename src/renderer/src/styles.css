@@ -1,0 +1,174 @@
+:root {
+  --rail-width: 64px;
+  --bg: #111b21;
+  --rail-bg: #0b141a;
+  --border: #222d34;
+  --text: #e9edef;
+  --muted: #8696a0;
+  --accent: #25d366;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Ubuntu, sans-serif;
+  overflow: hidden;
+  user-select: none;
+}
+
+.app {
+  display: flex;
+  height: 100%;
+}
+
+/* The rail is the only region the shell renderer actually owns — account
+   WebContentsViews are inset by exactly --rail-width and paint above the DOM. */
+.rail {
+  width: var(--rail-width);
+  flex: 0 0 var(--rail-width);
+  background: var(--rail-bg);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 0;
+  gap: 8px;
+}
+
+.rail-scroll {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.rail-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.avatar {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  border-radius: 14px;
+  border: 2px solid transparent;
+  background: #202c33;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: border-radius 120ms ease, border-color 120ms ease;
+}
+
+.avatar:hover {
+  border-radius: 12px;
+}
+
+.avatar.active {
+  border-radius: 12px;
+}
+
+.avatar .ring {
+  position: absolute;
+  inset: -4px;
+  border-radius: 16px;
+  border: 2px solid currentColor;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.avatar.active .ring {
+  opacity: 1;
+}
+
+.badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: #05300f;
+  border: 2px solid var(--rail-bg);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 14px;
+  display: grid;
+  place-items: center;
+}
+
+/* Muted or manually-flagged: presence without a count. */
+.badge-dot {
+  min-width: 12px;
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border-radius: 6px;
+  background: var(--muted);
+}
+
+/* Count could not be determined — deliberately distinct from "zero". */
+.badge-unknown {
+  background: #f59e0b;
+  color: #3a2503;
+}
+
+.add {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  border-radius: 14px;
+  border: 1px dashed var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.add:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Only visible when no account view covers the area (i.e. no accounts yet). */
+.empty {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 40px;
+}
+
+.empty h1 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 6px;
+}
+
+.empty p {
+  color: var(--muted);
+  margin: 0;
+  max-width: 46ch;
+}
