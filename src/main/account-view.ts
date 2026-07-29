@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { WebContentsView, app, session, type BrowserWindow } from 'electron'
 import { attachContextMenu } from './context-menu'
-import { RAIL_WIDTH, WHATSAPP_URL, type AccountRecord } from '../shared/types'
+import { TAB_BAR_HEIGHT, WHATSAPP_URL, type AccountRecord } from '../shared/types'
 import { pinNavigation } from './navigation'
 import { accountSessionDir } from './paths'
 import { hardenSession } from './session-harden'
@@ -31,7 +31,20 @@ export class AccountViewManager {
     private readonly win: BrowserWindow,
     private readonly getLabel: (accountId: string) => string,
   ) {
-    this.win.on('resize', () => this.layout())
+    // 'resize' alone is not enough. A view created before the window has settled
+    // at its final content size keeps those stale bounds until the user happens
+    // to resize — which left the page overhanging the bottom of the window.
+    for (const event of [
+      'resize',
+      'show',
+      'restore',
+      'maximize',
+      'unmaximize',
+      'enter-full-screen',
+      'leave-full-screen',
+    ] as const) {
+      this.win.on(event, () => this.layout())
+    }
   }
 
   has(id: string): boolean {
@@ -128,6 +141,12 @@ export class AccountViewManager {
     this.layout()
   }
 
+  /** Reload an account's page — the usual fix when WhatsApp Web wedges. */
+  reload(id: string): void {
+    const view = this.views.get(id)
+    if (view && !view.webContents.isDestroyed()) view.webContents.reload()
+  }
+
   getActiveId(): string | null {
     return this.activeId
   }
@@ -169,11 +188,12 @@ export class AccountViewManager {
 
   private layoutOne(view: WebContentsView): void {
     const [width, height] = this.win.getContentSize()
+    // Account views sit below the tab bar, which the shell renderer owns.
     view.setBounds({
-      x: RAIL_WIDTH,
-      y: 0,
-      width: Math.max(0, width - RAIL_WIDTH),
-      height: Math.max(0, height),
+      x: 0,
+      y: TAB_BAR_HEIGHT,
+      width: Math.max(0, width),
+      height: Math.max(0, height - TAB_BAR_HEIGHT),
     })
   }
 }

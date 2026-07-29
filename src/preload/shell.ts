@@ -21,7 +21,28 @@ const api = {
   removeAccount: (id: string): Promise<ShellState | null> =>
     ipcRenderer.invoke('shell:removeAccount', id),
 
+  /** Pops the native per-tab menu (rename / reload / remove). */
+  tabMenu: (id: string): Promise<null> => ipcRenderer.invoke('shell:tabMenu', id),
+
   processIds: (): Promise<Record<string, number> | null> => ipcRenderer.invoke('shell:processIds'),
+
+  /** Main asks us to open the inline rename editor for a tab. */
+  onBeginRename: (cb: (id: string) => void): (() => void) => {
+    const handler = (_event: IpcRendererEvent, id: string): void => cb(id)
+    ipcRenderer.on('shell:beginRename', handler)
+    return () => {
+      ipcRenderer.removeListener('shell:beginRename', handler)
+    }
+  },
+
+  /** Main asks us to confirm removal — the dialog lives renderer-side. */
+  onConfirmRemove: (cb: (id: string) => void): (() => void) => {
+    const handler = (_event: IpcRendererEvent, id: string): void => cb(id)
+    ipcRenderer.on('shell:confirmRemove', handler)
+    return () => {
+      ipcRenderer.removeListener('shell:confirmRemove', handler)
+    }
+  },
 
   onState: (cb: (state: ShellState) => void): (() => void) => {
     const handler = (_event: IpcRendererEvent, state: ShellState): void => cb(state)

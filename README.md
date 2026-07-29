@@ -39,7 +39,7 @@ npm install
 npm run dev          # dev server with HMR
 ```
 
-Then press **+** in the left rail and scan the QR code with your phone.
+Then press **+** in the tab bar and scan the QR code with your phone.
 
 ```bash
 npm run build        # typecheck + bundle to out/
@@ -63,22 +63,31 @@ env -u ELECTRON_RUN_AS_NODE ./node_modules/.bin/electron .
 
 ## How it works
 
-One `BrowserWindow` renders the account rail; each account is a separate `WebContentsView`
-laid over it.
+One `BrowserWindow` renders the account tab bar; each account is a separate `WebContentsView`
+laid out beneath it.
 
 ```text
-BrowserWindow ── renderer: account rail (React)
-   └─ contentView
-        ├─ WebContentsView  session=Accounts/<uuid-a>  → web.whatsapp.com
-        └─ WebContentsView  session=Accounts/<uuid-b>  → web.whatsapp.com
+┌─ BrowserWindow ─────────────────────────────────┐
+│ [Work] [Personal 3] [Client] [+]   ← tab bar,   │  renderer (React), 40px
+├─────────────────────────────────────────────────┤
+│                                                 │
+│   WebContentsView  session=Accounts/<uuid>      │  inset 40px from the top
+│   → web.whatsapp.com                            │
+└─────────────────────────────────────────────────┘
 ```
+
+Views paint *above* the DOM, so the tab bar is a reserved region rather than an overlay —
+nothing in the renderer can draw on top of an account. `TAB_BAR_HEIGHT` in
+[`src/shared/types.ts`](src/shared/types.ts) is the single source of truth; the CSS variable
+`--tabbar-height` must match it.
 
 A few choices worth knowing about, because the obvious alternatives are wrong:
 
 - **`WebContentsView`, not `<webview>` or `BrowserView`.** `BrowserView` is formally
   deprecated; `<webview>` carries a standing "we recommend not using this" warning from the
-  Electron team. The cost is manual bounds management and views painting above the DOM, so
-  the rail is a reserved region rather than an overlay.
+  Electron team. The cost is manual bounds management: there is no `setAutoResize`, and
+  laying out on `resize` alone is not enough — a view created before the window settles keeps
+  stale bounds, so `show`/`restore`/`maximize`/fullscreen are all wired too.
 
 - **`session.fromPath()`, not `partition: 'persist:<id>'`.** Electron lowercases and
   percent-escapes partition names before they hit disk, so the directory name would not be
@@ -120,12 +129,13 @@ A few choices worth knowing about, because the obvious alternatives are wrong:
 | Right-click menu (copy/paste/links/images) | ✅ Built by hand — Electron gives embedded content none |
 | Spellcheck suggestions | ✅ Built from the context-menu event + `replaceMisspelling()` |
 | Download handling | ✅ Auto-saves to `~/Downloads`, never clobbers, toast reveals the file |
-| Rename accounts | ✅ Double-click the rail icon (reorder still missing) |
+| Rename accounts | ✅ Double-click a tab, or right-click → Rename |
 | Media, emoji, drag-and-drop upload | ⚪ Should work (Chromium default) — not yet verified |
 | Voice message recording | ⚠️ **Untested.** Crashes the closest prior art (altus#333) |
 | Voice / video calls | ⚪ Permissions granted; not yet verified |
 | Screen share | ⚪ Handler wired; **not yet verified** (needs a live call) |
 | Tray icon + close-to-tray | ✅ Verified registered with `org.kde.StatusNotifierWatcher` |
+| Per-tab menu (rename / reload / remove) | ✅ Native menu on right-click |
 | Reorder accounts | ❌ Not implemented |
 | Packaging | ✅ `--dir` build verified: runs, tray icon resolves, asar excludes sources |
 | Auto-update | ❌ Not implemented |

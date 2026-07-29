@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { app, BrowserWindow } from 'electron'
-import { RAIL_WIDTH } from '../shared/types'
+import { TAB_BAR_HEIGHT } from '../shared/types'
 import { AccountViewManager } from './account-view'
 import { clearLauncherBadge } from './badge'
 import { AppTray } from './tray'
@@ -43,8 +43,8 @@ function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 1280,
     height: 860,
-    minWidth: RAIL_WIDTH + 480,
-    minHeight: 500,
+    minWidth: 560,
+    minHeight: TAB_BAR_HEIGHT + 460,
     show: false,
     backgroundColor: '#111b21',
     title: 'WhatsApp Multi',

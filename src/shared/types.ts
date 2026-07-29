@@ -46,9 +46,9 @@ export const CURRENT_SCHEMA_VERSION = 1
 export const WHATSAPP_URL = 'https://web.whatsapp.com/'
 export const WHATSAPP_HOST = 'web.whatsapp.com'
 
-/** Width of the account rail, in CSS px. The shell renderer draws it; account
- *  views are inset by exactly this much. */
-export const RAIL_WIDTH = 64
+/** Height of the account tab bar, in CSS px. The shell renderer draws it;
+ *  account views are inset from the top by exactly this much. */
+export const TAB_BAR_HEIGHT = 40
 
 export const ACCOUNT_COLORS = [
   '#25D366',

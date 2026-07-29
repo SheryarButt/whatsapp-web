@@ -1,5 +1,5 @@
 import { rm } from 'node:fs/promises'
-import { ipcMain, session, type BrowserWindow, type IpcMainInvokeEvent } from 'electron'
+import { Menu, ipcMain, session, type BrowserWindow, type IpcMainInvokeEvent } from 'electron'
 import type { ShellState } from '../shared/types'
 import type { AccountViewManager } from './account-view'
 import type { AppTray } from './tray'
@@ -132,6 +132,26 @@ export function registerIpc(
     views.setActive(next)
     broadcast()
     return shellState()
+  })
+
+  /**
+   * Native right-click menu for a tab. Rename and remove are routed back to the
+   * renderer rather than executed here so the inline editor and the confirm
+   * dialog stay in one place.
+   */
+  ipcMain.handle('shell:tabMenu', (event, id: unknown) => {
+    if (!fromShell(event) || typeof id !== 'string') return null
+    const account = getConfig().accounts.find((a) => a.id === id)
+    if (!account) return null
+
+    Menu.buildFromTemplate([
+      { label: `Rename “${account.name}”…`, click: () => win.webContents.send('shell:beginRename', id) },
+      { label: 'Reload', click: () => views.reload(id) },
+      { type: 'separator' },
+      { label: 'Remove account…', click: () => win.webContents.send('shell:confirmRemove', id) },
+    ]).popup({ window: win })
+
+    return null
   })
 
   ipcMain.handle('shell:processIds', (event) => {
