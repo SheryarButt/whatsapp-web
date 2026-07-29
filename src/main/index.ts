@@ -1,8 +1,10 @@
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, nativeImage } from 'electron'
 import { TAB_BAR_HEIGHT } from '../shared/types'
 import { AccountViewManager } from './account-view'
 import { clearLauncherBadge } from './badge'
+import { iconPath } from './icons'
 import { AppTray } from './tray'
 import { addAccount, flushConfig, getConfig, loadConfig, setActiveAccount } from './config-store'
 import { registerIpc } from './ipc'
@@ -48,6 +50,9 @@ function createWindow(): BrowserWindow {
     show: false,
     backgroundColor: '#111b21',
     title: 'WhatsApp Multi',
+    // Used directly on X11. On Wayland the icon actually comes from the
+    // .desktop file matching our app_id — see scripts/install-desktop-entry.mjs.
+    icon: nativeImage.createFromPath(iconPath(256)),
     webPreferences: {
       preload: join(__dirname, '../preload/shell.cjs'),
       sandbox: true,
@@ -102,9 +107,42 @@ function bootstrap(): void {
   })
 }
 
+/**
+ * A missing desktop entry breaks the window icon, the switcher icon, the
+ * notification icon and the launcher badge — all silently, with a generic
+ * placeholder as the only symptom. Say so plainly at startup.
+ */
+function checkDesktopEntry(): void {
+  if (process.platform !== 'linux') return
+
+  const name = process.env['CHROME_DESKTOP']
+  if (!name) {
+    console.warn('[desktop] CHROME_DESKTOP unset — setDesktopName() did not take effect')
+    return
+  }
+
+  const dataHome = process.env['XDG_DATA_HOME'] || join(app.getPath('home'), '.local', 'share')
+  const dataDirs = (process.env['XDG_DATA_DIRS'] || '/usr/local/share:/usr/share').split(':')
+  const found = [dataHome, ...dataDirs]
+    .filter(Boolean)
+    .map((dir) => join(dir, 'applications', name))
+    .find((candidate) => existsSync(candidate))
+
+  if (found) {
+    console.log(`[desktop] app_id=${name.replace(/\.desktop$/, '')} -> ${found}`)
+  } else {
+    console.warn(
+      `[desktop] no ${name} installed — the app will show a generic icon.\n` +
+        '          Run: npm run desktop:install',
+    )
+  }
+}
+
 function onReady(): void {
   // Must happen before any view is created.
   app.userAgentFallback = cleanUserAgent(app.userAgentFallback)
+
+  checkDesktopEntry()
 
   loadConfig()
 

@@ -34,17 +34,16 @@ export class AccountViewManager {
     // 'resize' alone is not enough. A view created before the window has settled
     // at its final content size keeps those stale bounds until the user happens
     // to resize — which left the page overhanging the bottom of the window.
-    for (const event of [
-      'resize',
-      'show',
-      'restore',
-      'maximize',
-      'unmaximize',
-      'enter-full-screen',
-      'leave-full-screen',
-    ] as const) {
-      this.win.on(event, () => this.layout())
-    }
+    // (Listed individually: BrowserWindow.on is overloaded per event name and
+    // will not accept a union.)
+    const relayout = (): void => this.layout()
+    this.win.on('resize', relayout)
+    this.win.on('show', relayout)
+    this.win.on('restore', relayout)
+    this.win.on('maximize', relayout)
+    this.win.on('unmaximize', relayout)
+    this.win.on('enter-full-screen', relayout)
+    this.win.on('leave-full-screen', relayout)
   }
 
   has(id: string): boolean {

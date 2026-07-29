@@ -45,6 +45,27 @@ Then press **+** in the tab bar and scan the QR code with your phone.
 npm run build        # typecheck + bundle to out/
 npm start            # run the built app
 npm run typecheck    # main/preload and renderer, separately
+npm run icons        # regenerate build/icons from the generator script
+```
+
+### Getting the app icon to show up
+
+On Wayland a window carries **no icon of its own**. The compositor matches the window's
+`app_id` to an installed `.desktop` file and uses that file's `Icon=`. Electron derives
+`app_id` from `app.setDesktopName()`, so without a matching entry you get a generic
+placeholder in the dock, the switcher *and* on notifications.
+
+Packaged `.deb` builds install one automatically. When running from source:
+
+```bash
+npm run desktop:install     # writes to ~/.local/share, no sudo
+npm run desktop:uninstall
+```
+
+The app reports the result at startup, so a missing entry is never a silent mystery:
+
+```text
+[desktop] app_id=com.sheryar.WhatsAppMulti -> ~/.local/share/applications/com.sheryar.WhatsAppMulti.desktop
 ```
 
 ### `ELECTRON_RUN_AS_NODE`
@@ -138,6 +159,7 @@ A few choices worth knowing about, because the obvious alternatives are wrong:
 | Per-tab menu (rename / reload / remove) | ✅ Native menu on right-click |
 | Reorder accounts | ❌ Not implemented |
 | Packaging | ✅ `--dir` build verified: runs, tray icon resolves, asar excludes sources |
+| App / tray / notification icon | ✅ Generated set + desktop entry; startup verifies the chain |
 | Auto-update | ❌ Not implemented |
 
 Notification **inline reply** is not possible on this target: GNOME's notification daemon

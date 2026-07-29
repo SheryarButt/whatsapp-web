@@ -1,5 +1,5 @@
-import { join } from 'node:path'
 import { Menu, Tray, app, nativeImage, type BrowserWindow } from 'electron'
+import { iconPath } from './icons'
 import type { AccountRecord, UnreadReport } from '../shared/types'
 
 export interface TrayState {
@@ -7,12 +7,6 @@ export interface TrayState {
   activeAccountId: string | null
   unread: Record<string, UnreadReport>
   total: number
-}
-
-function iconPath(size: number): string {
-  return app.isPackaged
-    ? join(process.resourcesPath, 'icons', `${size}x${size}.png`)
-    : join(__dirname, '..', '..', 'build', 'icons', `${size}x${size}.png`)
 }
 
 /**
