@@ -5,9 +5,9 @@ with native notifications and unread badges.
 
 Built on Electron 43. Linux-first (developed and verified on Ubuntu 26.04 / Wayland / GNOME 50).
 
-> **Status: early.** Accounts, notifications, unread badges, downloads and the right-click
-> menu, tray and downloads work and are verified. Auto-update is **not built yet**, and
-> packaging / calls / screen share are wired but unverified — see [Feature status](#feature-status).
+> **Status: early.** Accounts, notifications, unread badges, downloads, the right-click menu,
+> the tray and packaging all work and are verified. Auto-update is **not built yet**; calls
+> and screen share are wired but unverified — see [Feature status](#feature-status).
 
 ---
 
@@ -127,7 +127,7 @@ A few choices worth knowing about, because the obvious alternatives are wrong:
 | Screen share | ⚪ Handler wired; **not yet verified** (needs a live call) |
 | Tray icon + close-to-tray | ✅ Verified registered with `org.kde.StatusNotifierWatcher` |
 | Reorder accounts | ❌ Not implemented |
-| Packaging (.deb / AppImage) | ⚪ `electron-builder.yml` written; build not yet run |
+| Packaging | ✅ `--dir` build verified: runs, tray icon resolves, asar excludes sources |
 | Auto-update | ❌ Not implemented |
 
 Notification **inline reply** is not possible on this target: GNOME's notification daemon
@@ -139,9 +139,10 @@ click routing works).
 ## Data layout
 
 ```text
-~/.config/WhatsAppMulti/          # -dev suffix when unpackaged
-  config.json                     # account list, atomic writes
-  Accounts/<uuid>/                # one Chromium session tree per account
+~/.config/whatsapp-multi/     # packaged build
+~/.config/WhatsAppMulti-dev/  # unpackaged, so dev never touches real accounts
+  config.json                 # account list, atomic writes
+  Accounts/<uuid>/            # one Chromium session tree per account
 ```
 
 `config.json` is a **sibling** of `Accounts/`, never a parent, so wiping an account can
