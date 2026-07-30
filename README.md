@@ -87,6 +87,33 @@ The generated `Exec` points at `node_modules/electron/dist/electron`, **not**
 the real binary as a child: fine from a terminal, but launched from the desktop it starts and
 immediately dies, so clicking the menu entry appears to do nothing at all.
 
+#### If it launches from a terminal but not from the applications menu
+
+Ubuntu 24.04+ sets `kernel.apparmor_restrict_unprivileged_userns=1`, so an **unconfined**
+process cannot create the user namespace Chromium's sandbox needs. Electron falls back to the
+SUID helper, and aborts if it is not root-owned:
+
+```text
+FATAL: The SUID sandbox helper binary was found, but is not configured correctly.
+```
+
+Whether you hit this depends on *who launches the app*. A terminal running under a permissive
+AppArmor profile (VS Code's, for example) can create a userns and works fine; `gnome-shell` is
+unconfined and fails. Same binary, same entry, different outcome — which makes it easy to
+misdiagnose as a broken desktop file.
+
+```bash
+sudo chown root:root node_modules/electron/dist/chrome-sandbox
+sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
+```
+
+Re-run after any `npm install`, which replaces the binary. `npm run desktop:install` detects
+this and prints the commands. Packaged `.deb` builds handle it in their post-install script,
+which is the durable answer.
+
+Adding `--no-sandbox` would also "work" and is **not** recommended here: this app renders a
+third-party site, and that flag removes its OS sandbox entirely.
+
 ### `ELECTRON_RUN_AS_NODE`
 
 VS Code's Electron host exports `ELECTRON_RUN_AS_NODE=1` into every terminal it spawns.

@@ -18,7 +18,7 @@
  * Everything is written under $XDG_DATA_HOME (~/.local/share) — nothing system
  * wide, no sudo.
  */
-import { copyFileSync, mkdirSync, rmSync, writeFileSync, existsSync } from 'node:fs'
+import { copyFileSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync, existsSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { dirname, join, resolve } from 'node:path'
@@ -123,4 +123,55 @@ StartupWMClass=${APP_ID}
 refreshCaches()
 console.log(`installed ${DESKTOP_FILE}`)
 console.log(`icons     ${ICONS_DIR}/<size>/apps/${ICON_NAME}.png`)
+
+checkSandbox(electron)
+
 console.log('\nRestart the app so the compositor re-matches its app_id.')
+
+/**
+ * Warn if the app will abort when launched from the desktop.
+ *
+ * Ubuntu 24.04+ sets kernel.apparmor_restrict_unprivileged_userns=1, so an
+ * unconfined process cannot create the user namespace Chromium's sandbox wants.
+ * Electron then falls back to the SUID helper, and if chrome-sandbox is not
+ * root-owned mode 4755 it aborts with a FATAL error.
+ *
+ * This is easy to miss because it depends on WHO launches the app: a terminal
+ * running under a permissive AppArmor profile (VS Code's, for instance) can
+ * create a userns and works fine, while gnome-shell is unconfined and fails.
+ * Same binary, same desktop entry, different outcome.
+ */
+function checkSandbox(binary) {
+  let restricted = false
+  try {
+    restricted =
+      readFileSync('/proc/sys/kernel/apparmor_restrict_unprivileged_userns', 'utf8').trim() === '1'
+  } catch {
+    return // not an Ubuntu-style kernel; nothing to check
+  }
+  if (!restricted) return
+
+  const helper = join(dirname(binary), 'chrome-sandbox')
+  let ok = false
+  try {
+    const st = statSync(helper)
+    ok = st.uid === 0 && (st.mode & 0o4000) !== 0
+  } catch {
+    return
+  }
+  if (ok) return
+
+  console.log(`
+⚠  The app will FAIL to launch from the applications menu until the Chromium
+   sandbox helper is fixed. It may still work from a terminal, which makes this
+   easy to misdiagnose.
+
+   Unprivileged user namespaces are restricted on this kernel, so Electron needs
+   the SUID helper, and it is not currently root-owned:
+
+     sudo chown root:root ${helper}
+     sudo chmod 4755 ${helper}
+
+   Re-run those after any 'npm install', which replaces the binary.
+   (Packaged .deb builds handle this in their post-install script.)`)
+}
