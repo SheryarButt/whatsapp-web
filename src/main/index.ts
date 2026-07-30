@@ -6,6 +6,8 @@ import { AccountViewManager } from './account-view'
 import { clearLauncherBadge } from './badge'
 import { iconPath } from './icons'
 import { AppTray } from './tray'
+import { installAppMenu } from './app-menu'
+import { setMenuRefresh } from './menu-refresh'
 import { addAccount, flushConfig, getConfig, loadConfig, setActiveAccount } from './config-store'
 import { registerIpc } from './ipc'
 import { pruneOrphanAccountDirs } from './prune'
@@ -161,6 +163,21 @@ function onReady(): void {
 
   const api = registerIpc(mainWindow, views, hasTray ? tray : null)
   activate = api.activate
+
+  // Rebuild every menu that shows the autostart state. Registered as a hook so
+  // the tray and the gear menu can trigger it without importing this module.
+  const refreshMenus = (): void => {
+    if (!mainWindow) return
+    installAppMenu({
+      win: mainWindow,
+      addAccount: api.addAccount,
+      reloadActive: api.reloadActive,
+      onAutostartChanged: refreshMenus,
+    })
+    api.broadcast() // rebuilds the tray menu too
+  }
+  setMenuRefresh(refreshMenus)
+  refreshMenus()
 
   // Started by the autostart entry: stay in the tray rather than stealing focus
   // at login. Without a tray there would be no way back, so show it anyway.

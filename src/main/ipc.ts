@@ -4,6 +4,7 @@ import type { ShellState } from '../shared/types'
 import type { AccountViewManager } from './account-view'
 import type { AppTray } from './tray'
 import * as autostart from './autostart'
+import { refreshMenus } from './menu-refresh'
 import {
   addAccount,
   getConfig,
@@ -27,6 +28,10 @@ export function shellState(): ShellState {
 export interface IpcApi {
   broadcast: () => void
   activate: (accountId: string) => void
+  /** Same action as the + button, for the menu bar. */
+  addAccount: () => void
+  /** Reload whichever account is on screen. */
+  reloadActive: () => void
 }
 
 export function registerIpc(
@@ -170,6 +175,7 @@ export function registerIpc(
             // setting that did not take.
             item.checked = autostart.isEnabled()
           }
+          refreshMenus()
         },
       },
       { type: 'separator' },
@@ -244,5 +250,18 @@ export function registerIpc(
     console.log(`[notify] click -> activated ${accountId.slice(0, 8)}`)
   })
 
-  return { broadcast, activate }
+  const newAccount = (): void => {
+    const account = addAccount(`Account ${getConfig().accounts.length + 1}`)
+    views.ensure(account)
+    setActiveAccount(account.id)
+    views.setActive(account.id)
+    broadcast()
+  }
+
+  const reloadActive = (): void => {
+    const id = getConfig().activeAccountId
+    if (id) views.reload(id)
+  }
+
+  return { broadcast, activate, addAccount: newAccount, reloadActive }
 }

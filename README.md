@@ -83,7 +83,14 @@ env -u ELECTRON_RUN_AS_NODE ./node_modules/.bin/electron .
 
 ### Start at login
 
-**Settings (⚙ in the tab bar) → Start at login**, or the same entry in the tray menu.
+Three places, whichever is closest to hand:
+
+- **⚙ Settings** in the tab bar
+- **File → Start at login** in the menu bar
+- the **tray** menu (the one that still works when the window is hidden)
+
+All three are rebuilt when any of them changes — Electron menu items cannot be updated in
+place, so a stale tick is the default failure and has to be designed out.
 
 It launches with `--hidden`, so at login the app comes up in the tray rather than stealing
 focus — accounts still connect and notifications still arrive. If the tray failed to

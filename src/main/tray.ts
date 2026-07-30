@@ -1,6 +1,7 @@
 import { Menu, Tray, app, nativeImage, type BrowserWindow } from 'electron'
 import { iconPath } from './icons'
 import * as autostart from './autostart'
+import { refreshMenus } from './menu-refresh'
 import type { AccountRecord, UnreadReport } from '../shared/types'
 
 export interface TrayState {
@@ -107,6 +108,7 @@ export class AppTray {
         click: (item) => {
           autostart.setEnabled(item.checked)
           item.checked = autostart.isEnabled()
+          refreshMenus()
         },
       },
       { label: 'Quit', click: () => app.quit() },

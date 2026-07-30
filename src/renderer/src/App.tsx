@@ -140,10 +140,13 @@ export default function App(): React.JSX.Element {
         <button
           type="button"
           className="tab-settings"
-          title="Settings"
+          title="Settings — start at login, version, quit"
           onClick={() => void window.shell.settingsMenu()}
         >
-          ⚙
+          <span className="gear" aria-hidden="true">
+            ⚙
+          </span>
+          <span className="label">Settings</span>
         </button>
       </nav>
 
