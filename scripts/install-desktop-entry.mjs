@@ -20,6 +20,7 @@
  */
 import { copyFileSync, mkdirSync, rmSync, writeFileSync, existsSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
+import { createRequire } from 'node:module'
 import { dirname, join, resolve } from 'node:path'
 import { homedir } from 'node:os'
 import { fileURLToPath } from 'node:url'
@@ -71,7 +72,32 @@ for (const size of SIZES) {
   copyFileSync(join(source, `${size}x${size}.png`), join(dest, `${ICON_NAME}.png`))
 }
 
-const electron = join(PROJECT, 'node_modules', '.bin', 'electron')
+/**
+ * Resolve the REAL Electron binary, not node_modules/.bin/electron.
+ *
+ * That path is a symlink to cli.js — a Node script that spawns the binary as a
+ * child. Launched from a terminal the shim works, but launched from the desktop
+ * (no controlling terminal) the app starts and immediately dies, so clicking
+ * the menu entry appears to do nothing. The electron package exports the
+ * absolute binary path; use it directly and drop the Node layer.
+ */
+function resolveElectronBinary() {
+  try {
+    const require = createRequire(import.meta.url)
+    const resolved = require(join(PROJECT, 'node_modules', 'electron'))
+    if (typeof resolved === 'string' && existsSync(resolved)) return resolved
+  } catch {
+    // fall through to the conventional location
+  }
+  const fallback = join(PROJECT, 'node_modules', 'electron', 'dist', 'electron')
+  if (!existsSync(fallback)) {
+    console.error('could not find the Electron binary — run: npm install')
+    process.exit(1)
+  }
+  return fallback
+}
+
+const electron = resolveElectronBinary()
 
 // `env -u ELECTRON_RUN_AS_NODE` matters: if the variable is inherited, Electron
 // runs the main script as plain Node and the app exits silently.

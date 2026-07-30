@@ -82,6 +82,11 @@ The app reports the result at startup, so a missing entry is never a silent myst
 [desktop] app_id=com.sheryar.WhatsAppMulti -> ~/.local/share/applications/com.sheryar.WhatsAppMulti.desktop
 ```
 
+The generated `Exec` points at `node_modules/electron/dist/electron`, **not**
+`node_modules/.bin/electron`. The latter is a symlink to `cli.js`, a Node script that spawns
+the real binary as a child: fine from a terminal, but launched from the desktop it starts and
+immediately dies, so clicking the menu entry appears to do nothing at all.
+
 ### `ELECTRON_RUN_AS_NODE`
 
 VS Code's Electron host exports `ELECTRON_RUN_AS_NODE=1` into every terminal it spawns.
