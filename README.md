@@ -5,10 +5,9 @@ with native notifications and unread badges.
 
 Built on Electron 43. Linux-first (developed and verified on Ubuntu 26.04 / Wayland / GNOME 50).
 
-> **Status: early.** Accounts, notifications, unread badges, downloads, the right-click menu,
-> the tray, start-at-login and packaging all work and are verified. Auto-update is **not built
-> yet**; calls and screen share are wired but unverified — see
-> [Feature status](#feature-status).
+> **Status: usable.** Everything in the [feature table](#feature-status) is verified working,
+> including voice/video calls, screen share and voice-message recording. Auto-update and tab
+> reordering are the notable gaps.
 
 ---
 
@@ -17,6 +16,20 @@ Built on Electron 43. Linux-first (developed and verified on Ubuntu 26.04 / Wayl
 There is no official WhatsApp desktop client for Linux, and WhatsApp Web itself has no
 multi-account support. The existing wrappers either only handle one account, or are built
 on Electron APIs that are deprecated or discouraged.
+
+Calls, screen share and voice-message recording all work here. That is worth stating plainly
+because it is not a given: voice-message recording is an open crash in Altus
+([#333](https://github.com/amanharwara/altus/issues/333), since 2024), and WhatsApp Web only
+gained calls in early 2026 — the surveyed wrappers have open, unanswered issues for it. Three
+decisions are load-bearing for that:
+
+- `webRTCIPHandlingPolicy` is left at Electron's default. Ferdium ships
+  `disable_non_proxied_udp`, which makes WhatsApp calls hang forever at "connecting" behind a
+  misleading network error ([ferdium#2399](https://github.com/ferdium/ferdium-app/issues/2399)).
+- `media` and `display-capture` are granted in **both** `setPermissionRequestHandler` and
+  `setPermissionCheckHandler`. Installing only the first is a common and subtle omission.
+- `autoplay-policy=no-user-gesture-required`, or a background account is silent — no
+  notification ping and no incoming-call ringtone.
 
 ---
 
@@ -173,10 +186,10 @@ A few choices worth knowing about, because the obvious alternatives are wrong:
 | Spellcheck suggestions | ✅ Built from the context-menu event + `replaceMisspelling()` |
 | Download handling | ✅ Auto-saves to `~/Downloads`, never clobbers, toast reveals the file |
 | Rename accounts | ✅ Double-click a tab, or right-click → Rename |
-| Media, emoji, drag-and-drop upload | ⚪ Should work (Chromium default) — not yet verified |
-| Voice message recording | ⚠️ **Untested.** Crashes the closest prior art (altus#333) |
-| Voice / video calls | ⚪ Permissions granted; not yet verified |
-| Screen share | ⚪ Handler wired; **not yet verified** (needs a live call) |
+| Media, emoji, drag-and-drop upload | ✅ Verified |
+| Voice message recording | ✅ Verified — note this crashes the closest prior art ([altus#333](https://github.com/amanharwara/altus/issues/333)) |
+| Voice / video calls | ✅ Verified |
+| Screen share | ✅ Verified (xdg-desktop-portal picker on Wayland) |
 | Tray icon + close-to-tray | ✅ Verified registered with `org.kde.StatusNotifierWatcher` |
 | Per-tab menu (rename / reload / remove) | ✅ Native menu on right-click |
 | Reorder accounts | ❌ Not implemented |
