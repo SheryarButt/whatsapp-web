@@ -82,49 +82,8 @@ The app reports the result at startup, so a missing entry is never a silent myst
 [desktop] app_id=com.sheryar.WhatsAppMulti -> ~/.local/share/applications/com.sheryar.WhatsAppMulti.desktop
 ```
 
-The generated `Exec` points at `node_modules/electron/dist/electron`, **not**
-`node_modules/.bin/electron`. The latter is a symlink to `cli.js`, a Node script that spawns
-the real binary as a child: fine from a terminal, but launched from the desktop it starts and
-immediately dies, so clicking the menu entry appears to do nothing at all.
-
-#### If it launches from a terminal but not from the applications menu
-
-Ubuntu 24.04+ sets `kernel.apparmor_restrict_unprivileged_userns=1`, so an **unconfined**
-process cannot create the user namespace Chromium's sandbox needs. Electron falls back to the
-SUID helper, and aborts if it is not root-owned:
-
-```text
-FATAL: The SUID sandbox helper binary was found, but is not configured correctly.
-```
-
-Whether you hit this depends on *who launches the app*. A terminal running under a permissive
-AppArmor profile (VS Code's, for example) can create a userns and works fine; `gnome-shell` is
-unconfined and fails. Same binary, same entry, different outcome — which makes it easy to
-misdiagnose as a broken desktop file.
-
-```bash
-sudo chown root:root node_modules/electron/dist/chrome-sandbox
-sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
-```
-
-Re-run after any `npm install`, which replaces the binary. `npm run desktop:install` detects
-this and prints the commands. Packaged `.deb` builds handle it in their post-install script,
-which is the durable answer.
-
-Adding `--no-sandbox` would also "work" and is **not** recommended here: this app renders a
-third-party site, and that flag removes its OS sandbox entirely.
-
-### `ELECTRON_RUN_AS_NODE`
-
-VS Code's Electron host exports `ELECTRON_RUN_AS_NODE=1` into every terminal it spawns.
-If that variable is set, Electron runs the main script as **plain Node**, `require('electron')`
-returns a path string, and you get `TypeError: Cannot read properties of undefined (reading 'isPackaged')`.
-
-The `dev` and `start` scripts unset it. If you launch Electron directly, do the same:
-
-```bash
-env -u ELECTRON_RUN_AS_NODE ./node_modules/.bin/electron .
-```
+If the app does not start when launched from the desktop, see
+[Troubleshooting](#troubleshooting) — that is a different problem from a missing icon.
 
 ### Start at login
 
@@ -146,6 +105,101 @@ autostart through it appears to succeed and silently does nothing. Instead an XD
 entry is written to `~/.config/autostart/com.sheryar.WhatsAppMulti.desktop`. Disabling
 removes the file, and entries disabled by a desktop settings editor (`Hidden=true` or
 `X-GNOME-Autostart-enabled=false`) are read back correctly rather than reported as enabled.
+
+---
+
+## Troubleshooting
+
+### Start here: get the real error
+
+An app launched from the desktop has **no terminal**, so its crash output goes to the journal
+rather than to anywhere you are looking. Almost every "it just doesn't start" is a one-line
+`FATAL` that is already recorded:
+
+```bash
+journalctl --user -n 200 --no-pager | grep -i whatsapp
+```
+
+Lines tagged `com.sheryar.WhatsAppMulti.desktop[<pid>]` are the app's own stderr. systemd also
+logs the launch scope, which tells you whether the launch happened at all:
+
+```text
+Started app-gnome-com.sheryar.WhatsAppMulti-59917.scope - Application launched by gnome-shell.
+com.sheryar.WhatsAppMulti.desktop[59917]: FATAL: The SUID sandbox helper binary was found, but
+is not configured correctly...
+```
+
+### Why testing from a terminal can lie to you
+
+**A terminal is not the same launch environment as the desktop.** Three differences bite:
+
+| | Terminal | Desktop (`gnome-shell`) |
+|---|---|---|
+| AppArmor profile | whatever your terminal has — VS Code's permits user namespaces | `unconfined`, which on Ubuntu 24.04+ does **not** |
+| Controlling terminal | yes | no |
+| Environment | your shell profile, possibly with `ELECTRON_RUN_AS_NODE` | the session's |
+
+A fix can therefore pass from a terminal and still fail when clicked. Check what you are
+actually testing under:
+
+```bash
+cat /proc/self/attr/current                     # your shell's AppArmor profile
+cat /proc/$(pgrep -x gnome-shell)/attr/current  # the desktop session's
+unshare -Ur true && echo "userns allowed here"  # the capability that differs
+```
+
+`gio launch <file>.desktop` gets closer than running the `Exec` line by hand, but it still
+**inherits your shell's AppArmor profile**, so it is not conclusive either. The journal is.
+
+### Known failures
+
+| Symptom | Cause |
+|---|---|
+| Nothing happens from the apps menu, but it runs fine from a terminal | [SUID sandbox not configured](#suid-sandbox-not-configured) |
+| Exits instantly with no output, or `TypeError: ... reading 'isPackaged'` | [`ELECTRON_RUN_AS_NODE`](#electron_run_as_node) |
+| Generic placeholder icon in dock, switcher and notifications | no `.desktop` entry matching the app_id → `npm run desktop:install` |
+| Start-at-login stopped working | the entry stores absolute paths and the project moved → toggle it off and on |
+| Notifications stopped appearing | `[notify] SHIM NOT INSTALLED` in the log — `contextBridge.executeInMainWorld` is Experimental and may have changed |
+| Unread badge stuck | `[unread] status=db-absent` or `error` means the count is *unknown*, not zero — WhatsApp's IndexedDB schema may have moved |
+
+#### SUID sandbox not configured
+
+Ubuntu 24.04+ sets `kernel.apparmor_restrict_unprivileged_userns=1`, so an unconfined process
+cannot create the user namespace Chromium's sandbox needs. Electron falls back to the SUID
+helper and aborts if it is not root-owned.
+
+```bash
+sudo chown root:root node_modules/electron/dist/chrome-sandbox
+sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
+```
+
+Re-run after any `npm install`, which replaces the binary. `npm run desktop:install` detects
+this and prints the commands.
+
+Adding `--no-sandbox` also "works" and is **not** recommended: this app renders a third-party
+site, and the flag removes its OS sandbox entirely. Installing the `.deb` is the durable
+answer — its post-install script sets the ownership and ships an AppArmor profile.
+
+#### `ELECTRON_RUN_AS_NODE`
+
+VS Code's Electron host exports `ELECTRON_RUN_AS_NODE=1` into every terminal it spawns. With
+it set, Electron runs the main script as **plain Node**: `require('electron')` returns a path
+string instead of the module, so you get `TypeError: Cannot read properties of undefined
+(reading 'isPackaged')` — or, from a packaged binary, a silent exit with no output at all.
+
+The `dev` and `start` scripts unset it, and both generated `.desktop` files put
+`env -u ELECTRON_RUN_AS_NODE` in their `Exec`. If you launch Electron by hand, do the same:
+
+```bash
+env -u ELECTRON_RUN_AS_NODE ./node_modules/.bin/electron .
+```
+
+#### A note on `.bin/electron`
+
+`node_modules/.bin/electron` is a symlink to `cli.js`, a Node script that spawns the real
+binary as a child. That works from a terminal but not from the desktop — the app starts and
+immediately dies. Both generated `.desktop` files point at
+`node_modules/electron/dist/electron` directly for this reason.
 
 ---
 
