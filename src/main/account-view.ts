@@ -27,6 +27,9 @@ export class AccountViewManager {
    * @param getLabel Prefix applied to that account's notifications. Empty string
    *   means "don't prefix" (the sensible default with a single account).
    */
+  /** Set by the IPC layer to push alert rules once a view's preload is live. */
+  onViewReady?: (accountId: string) => void
+
   constructor(
     private readonly win: BrowserWindow,
     private readonly getLabel: (accountId: string) => string,
@@ -63,6 +66,28 @@ export class AccountViewManager {
 
   pushAllLabels(): void {
     for (const id of this.views.keys()) this.pushLabel(id)
+  }
+
+  /**
+   * Push the priority-alert rules into a view's page. Matching must happen
+   * inside the page so it can suppress WhatsApp's own notification before it is
+   * shown; by the time main hears about a notification it has already appeared.
+   */
+  pushAlerts(accountId: string, alerts: unknown): void {
+    const view = this.views.get(accountId)
+    if (!view || view.webContents.isDestroyed()) return
+    view.webContents.send('wa:set-alerts', alerts)
+  }
+
+  pushAllAlerts(alerts: unknown): void {
+    for (const id of this.views.keys()) this.pushAlerts(id, alerts)
+  }
+
+  /** Replay a click on the notification main fired for this account. */
+  sendPriorityClick(accountId: string, alertId: number): void {
+    const view = this.views.get(accountId)
+    if (!view || view.webContents.isDestroyed()) return
+    view.webContents.send('wa:priority-click', alertId)
   }
 
   /** Create the view if absent. Idempotent. */
@@ -118,7 +143,10 @@ export class AccountViewManager {
 
     // The preload installs its main-world shim at document-start but cannot know
     // which account it belongs to until we tell it.
-    view.webContents.on('dom-ready', () => this.pushLabel(account.id))
+    view.webContents.on('dom-ready', () => {
+      this.pushLabel(account.id)
+      this.onViewReady?.(account.id)
+    })
 
     // Start hidden; setActive() decides what is on screen.
     view.setVisible(false)

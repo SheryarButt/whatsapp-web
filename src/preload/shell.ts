@@ -29,6 +29,23 @@ const api = {
 
   processIds: (): Promise<Record<string, number> | null> => ipcRenderer.invoke('shell:processIds'),
 
+  setAlerts: (alerts: {
+    enabled: boolean
+    keywords: string[]
+    wholeWord: boolean
+  }): Promise<ShellState | null> => ipcRenderer.invoke('shell:setAlerts', alerts),
+
+  /** Restores the account view that the alerts panel was covering. */
+  closeAlerts: (): Promise<ShellState | null> => ipcRenderer.invoke('shell:closeAlerts'),
+
+  onOpenAlerts: (cb: () => void): (() => void) => {
+    const handler = (): void => cb()
+    ipcRenderer.on('shell:openAlerts', handler)
+    return () => {
+      ipcRenderer.removeListener('shell:openAlerts', handler)
+    }
+  },
+
   /** Main asks us to open the inline rename editor for a tab. */
   onBeginRename: (cb: (id: string) => void): (() => void) => {
     const handler = (_event: IpcRendererEvent, id: string): void => cb(id)

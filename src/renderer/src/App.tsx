@@ -1,5 +1,12 @@
 import { useEffect, useState } from 'react'
-import { EMPTY_UNREAD, type AccountRecord, type ShellState, type UnreadReport } from '../../shared/types'
+import {
+  DEFAULT_ALERTS,
+  EMPTY_UNREAD,
+  type AccountRecord,
+  type AlertSettings,
+  type ShellState,
+  type UnreadReport,
+} from '../../shared/types'
 
 /**
  * A number for real unread, a plain dot for muted-only or manually-flagged
@@ -56,13 +63,99 @@ function RenameField({
   )
 }
 
+/**
+ * Priority-alert settings. Shown full-window: account views paint above the DOM,
+ * so main hides them while this is open and restores them on close.
+ */
+function AlertsPanel({
+  alerts,
+  onSave,
+  onClose,
+}: {
+  alerts: AlertSettings
+  onSave: (next: AlertSettings) => void
+  onClose: () => void
+}): React.JSX.Element {
+  const [enabled, setEnabled] = useState(alerts.enabled)
+  const [wholeWord, setWholeWord] = useState(alerts.wholeWord)
+  const [text, setText] = useState(alerts.keywords.join('\n'))
+
+  const save = (): void => {
+    onSave({
+      enabled,
+      wholeWord,
+      keywords: text
+        .split('\n')
+        .map((k) => k.trim())
+        .filter(Boolean),
+    })
+    onClose()
+  }
+
+  const count = text.split('\n').filter((k) => k.trim()).length
+
+  return (
+    <main className="panel">
+      <div className="panel-inner">
+        <h1>Priority alerts</h1>
+        <p className="panel-sub">
+          Messages containing any of these words get a notification that <strong>stays on
+          screen until you dismiss it</strong>, instead of the normal one that disappears after
+          a few seconds. Clicking it opens that chat.
+        </p>
+
+        <label className="row">
+          <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+          <span>Enable priority alerts</span>
+        </label>
+
+        <label className="field">
+          <span className="field-label">Keywords — one per line, case-insensitive</span>
+          <textarea
+            rows={9}
+            value={text}
+            spellCheck={false}
+            placeholder={'urgent\nasap\noutage\nproduction down'}
+            onChange={(e) => setText(e.target.value)}
+            disabled={!enabled}
+          />
+        </label>
+
+        <label className="row">
+          <input
+            type="checkbox"
+            checked={wholeWord}
+            onChange={(e) => setWholeWord(e.target.checked)}
+            disabled={!enabled}
+          />
+          <span>
+            Match whole words only <em>— “urgent” will not fire on “insurgent”</em>
+          </span>
+        </label>
+
+        <div className="panel-actions">
+          <span className="hint">{count} keyword{count === 1 ? '' : 's'}</span>
+          <button type="button" className="btn" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="button" className="btn primary" onClick={save}>
+            Save
+          </button>
+        </div>
+      </div>
+    </main>
+  )
+}
+
 export default function App(): React.JSX.Element {
   const [state, setState] = useState<ShellState>({
     accounts: [],
     activeAccountId: null,
     unread: {},
+    alerts: DEFAULT_ALERTS,
   })
   const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [alertsOpen, setAlertsOpen] = useState(false)
 
   const apply = (result: ShellState | null): void => {
     if (result) setState(result)
@@ -79,6 +172,7 @@ export default function App(): React.JSX.Element {
     void window.shell.getState().then((s) => s && setState(s))
     const offState = window.shell.onState(setState)
     const offRename = window.shell.onBeginRename((id) => setRenamingId(id))
+    const offAlerts = window.shell.onOpenAlerts(() => setAlertsOpen(true))
     const offRemove = window.shell.onConfirmRemove((id) => {
       const account = state.accounts.find((a) => a.id === id)
       if (account) confirmRemove(account)
@@ -87,6 +181,7 @@ export default function App(): React.JSX.Element {
       offState()
       offRename()
       offRemove()
+      offAlerts()
     }
     // state.accounts is read inside onConfirmRemove, so the listener is rebound
     // when the account list changes.
@@ -150,7 +245,18 @@ export default function App(): React.JSX.Element {
         </button>
       </nav>
 
-      {state.accounts.length === 0 && (
+      {alertsOpen && (
+        <AlertsPanel
+          alerts={state.alerts}
+          onSave={(next) => void window.shell.setAlerts(next).then(apply)}
+          onClose={() => {
+            setAlertsOpen(false)
+            void window.shell.closeAlerts().then(apply)
+          }}
+        />
+      )}
+
+      {!alertsOpen && state.accounts.length === 0 && (
         <main className="empty">
           <div>
             <h1>No accounts yet</h1>

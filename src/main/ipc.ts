@@ -1,5 +1,13 @@
 import { rm } from 'node:fs/promises'
-import { Menu, app, ipcMain, session, type BrowserWindow, type IpcMainInvokeEvent } from 'electron'
+import {
+  Menu,
+  Notification,
+  app,
+  ipcMain,
+  session,
+  type BrowserWindow,
+  type IpcMainInvokeEvent,
+} from 'electron'
 import type { ShellState } from '../shared/types'
 import type { AccountViewManager } from './account-view'
 import type { AppTray } from './tray'
@@ -11,9 +19,12 @@ import {
   removeAccount,
   renameAccount,
   setActiveAccount,
+  getAlerts,
+  setAlerts,
 } from './config-store'
 import { accountSessionDir } from './paths'
 import { setLauncherBadge } from './badge'
+import { iconPath } from './icons'
 import { allUnread, forgetUnread, sanitize, setUnread, totalDirect } from './unread'
 
 export function shellState(): ShellState {
@@ -22,6 +33,7 @@ export function shellState(): ShellState {
     accounts: c.accounts,
     activeAccountId: c.activeAccountId,
     unread: allUnread(c.accounts.map((a) => a.id)),
+    alerts: c.alerts,
   }
 }
 
@@ -45,6 +57,7 @@ export function registerIpc(
     // Account count decides whether notifications get a name prefix, so labels
     // are recomputed whenever the account set changes.
     views.pushAllLabels()
+    views.pushAllAlerts(state.alerts)
     const total = totalDirect(state.accounts.map((a) => a.id))
     setLauncherBadge(total)
     tray?.update({ ...state, total })
@@ -178,12 +191,39 @@ export function registerIpc(
           refreshMenus()
         },
       },
+      {
+        label: 'Priority alerts…',
+        click: () => {
+          // Account views paint above the DOM, so the panel is invisible until
+          // they are hidden.
+          views.setActive(null)
+          win.webContents.send('shell:openAlerts')
+        },
+      },
       { type: 'separator' },
       { label: `WhatsApp Multi ${app.getVersion()}`, enabled: false },
       { label: 'Quit', click: () => app.quit() },
     ]).popup({ window: win })
 
     return null
+  })
+
+  ipcMain.handle('shell:closeAlerts', (event) => {
+    if (!fromShell(event)) return null
+    views.setActive(getConfig().activeAccountId)
+    return shellState()
+  })
+
+  ipcMain.handle('shell:setAlerts', (event, next: unknown) => {
+    if (!fromShell(event)) return null
+    const saved = setAlerts(next)
+    views.pushAllAlerts(saved)
+    broadcast()
+    console.log(
+      `[alerts] ${saved.enabled ? 'on' : 'off'}, ${saved.keywords.length} keyword(s), ` +
+        `wholeWord=${saved.wholeWord}`,
+    )
+    return shellState()
   })
 
   ipcMain.handle('shell:processIds', (event) => {
@@ -228,6 +268,53 @@ export function registerIpc(
     )
   })
 
+  /**
+   * A keyword matched inside the page, which suppressed WhatsApp's own
+   * notification. Fire the prominent one here — `urgency` and `timeoutType`
+   * exist only on the main-process Notification, which is the whole reason the
+   * page's version has to be suppressed rather than augmented.
+   */
+  ipcMain.on('wa:priority-notification', (event, payload: unknown) => {
+    const accountId = views.accountIdForWebContentsId(event.sender.id)
+    if (!accountId) return
+
+    const p = (payload ?? {}) as { id?: number; title?: string; body?: string; keyword?: string }
+    const alertId = Number(p.id) | 0
+    const account = getConfig().accounts.find((a) => a.id === accountId)
+    const who = account ? account.name : 'WhatsApp'
+    const title = String(p.title ?? '').slice(0, 200)
+    const body = String(p.body ?? '').slice(0, 500)
+    const keyword = String(p.keyword ?? '').slice(0, 100)
+
+    if (!Notification.isSupported()) {
+      console.warn('[alerts] notifications unsupported; cannot escalate')
+      return
+    }
+
+    const n = new Notification({
+      title: `🔴 ${who} — ${title}`,
+      body,
+      // GNOME keeps urgency=critical on screen until dismissed; normal ones
+      // auto-expire after a few seconds.
+      urgency: 'critical',
+      timeoutType: 'never',
+      icon: iconPath(256),
+    })
+
+    n.on('click', () => {
+      if (win.isDestroyed()) return
+      if (win.isMinimized()) win.restore()
+      win.show()
+      win.focus()
+      activate(accountId)
+      // Replay into WhatsApp's own handler so it opens the right chat.
+      views.sendPriorityClick(accountId, alertId)
+    })
+
+    n.show()
+    console.log(`[alerts] escalated ${accountId.slice(0, 8)} on "${keyword}": ${JSON.stringify(title)}`)
+  })
+
   ipcMain.on('wa:notification-shown', (event, payload: unknown) => {
     const accountId = views.accountIdForWebContentsId(event.sender.id)
     if (!accountId) return
@@ -262,6 +349,10 @@ export function registerIpc(
     const id = getConfig().activeAccountId
     if (id) views.reload(id)
   }
+
+  // A view's preload only exists after dom-ready, so rules pushed before that
+  // would be dropped silently.
+  views.onViewReady = (accountId) => views.pushAlerts(accountId, getAlerts())
 
   return { broadcast, activate, addAccount: newAccount, reloadActive }
 }

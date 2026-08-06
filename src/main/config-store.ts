@@ -1,7 +1,15 @@
 import { randomUUID } from 'node:crypto'
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
-import { ACCOUNT_COLORS, CURRENT_SCHEMA_VERSION, type AccountRecord, type AppConfig } from '../shared/types'
+import {
+  ACCOUNT_COLORS,
+  CURRENT_SCHEMA_VERSION,
+  DEFAULT_ALERTS,
+  type AccountRecord,
+  type AlertSettings,
+  type AppConfig,
+} from '../shared/types'
+import { sanitizeAlerts } from './alerts'
 import { configPath } from './paths'
 
 /**
@@ -14,6 +22,7 @@ const EMPTY: AppConfig = {
   schemaVersion: CURRENT_SCHEMA_VERSION,
   accounts: [],
   activeAccountId: null,
+  alerts: DEFAULT_ALERTS,
 }
 
 let config: AppConfig = { ...EMPTY, accounts: [] }
@@ -42,6 +51,8 @@ function migrate(raw: unknown): AppConfig {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     accounts: Array.isArray(c.accounts) ? c.accounts.filter(isAccount) : [],
     activeAccountId: typeof c.activeAccountId === 'string' ? c.activeAccountId : null,
+    // Absent in configs written before priority alerts existed.
+    alerts: sanitizeAlerts(c.alerts),
   }
 }
 
@@ -57,7 +68,7 @@ export function loadConfig(): AppConfig {
     raw = readFileSync(configPath(), 'utf8')
   } catch {
     // Genuinely absent: first run. Safe to treat as empty.
-    config = { ...EMPTY, accounts: [] }
+    config = { ...EMPTY, accounts: [], alerts: { ...DEFAULT_ALERTS } }
     loadStatus = 'missing'
     return config
   }
@@ -69,7 +80,7 @@ export function loadConfig(): AppConfig {
     // The file exists but we cannot read it. Do NOT present this as "no
     // accounts" — that would invite the pruner to delete every session dir.
     console.error('[config] unreadable, refusing to treat as empty:', err)
-    config = { ...EMPTY, accounts: [] }
+    config = { ...EMPTY, accounts: [], alerts: { ...DEFAULT_ALERTS } }
     loadStatus = 'corrupt'
     return config
   }
@@ -139,6 +150,16 @@ export function renameAccount(id: string, name: string): boolean {
   account.name = name.trim() || account.name
   saveConfig()
   return true
+}
+
+export function getAlerts(): AlertSettings {
+  return config.alerts
+}
+
+export function setAlerts(next: unknown): AlertSettings {
+  config.alerts = sanitizeAlerts(next)
+  saveConfig()
+  return config.alerts
 }
 
 export function setActiveAccount(id: string | null): void {

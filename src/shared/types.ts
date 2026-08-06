@@ -9,6 +9,26 @@ export interface AppConfig {
   schemaVersion: number
   accounts: AccountRecord[]
   activeAccountId: string | null
+  alerts: AlertSettings
+}
+
+/**
+ * Priority alerts: messages whose text contains one of these keywords get a
+ * notification that stays on screen until dismissed, instead of the normal one
+ * that auto-expires.
+ */
+export interface AlertSettings {
+  enabled: boolean
+  /** Matched case-insensitively. */
+  keywords: string[]
+  /** Require a whole-word hit, so "urgent" does not fire on "insurgent". */
+  wholeWord: boolean
+}
+
+export const DEFAULT_ALERTS: AlertSettings = {
+  enabled: true,
+  keywords: [],
+  wholeWord: true,
 }
 
 /**
@@ -39,6 +59,7 @@ export interface ShellState {
   accounts: AccountRecord[]
   activeAccountId: string | null
   unread: Record<string, UnreadReport>
+  alerts: AlertSettings
 }
 
 export const CURRENT_SCHEMA_VERSION = 1

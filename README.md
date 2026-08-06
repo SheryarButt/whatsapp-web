@@ -106,6 +106,29 @@ entry is written to `~/.config/autostart/com.sheryar.WhatsAppMulti.desktop`. Dis
 removes the file, and entries disabled by a desktop settings editor (`Hidden=true` or
 `X-GNOME-Autostart-enabled=false`) are read back correctly rather than reported as enabled.
 
+### Priority alerts
+
+**⚙ Settings → Priority alerts…** Messages containing any of your keywords get a notification
+that **stays on screen until dismissed**, instead of the normal one that auto-expires after a
+few seconds. Clicking it opens that chat, same as a normal notification.
+
+Whole-word matching is on by default, so `urgent` does not fire on `insurgent`. Word
+boundaries use Unicode letter/number classes rather than `\b`, which is ASCII-only in
+JavaScript and would mis-handle non-Latin text.
+
+The mechanism is worth knowing, because it is not simply "add an option to the notification":
+
+- `urgency` exists only on Electron's **main-process** `Notification`, not the web API. So a
+  priority alert cannot be an upgraded version of WhatsApp's own notification — WhatsApp's has
+  to be **suppressed** and ours fired instead, or you would get two per message.
+- Suppression has to happen synchronously *inside the page*, before the constructor runs, so
+  the keyword list is pushed into the main world and matched there. By the time main hears
+  about a notification it has already been shown.
+- The shim is therefore a `Proxy` with a `construct` trap rather than a subclass: a subclass
+  cannot skip its own `super()` call. On a match it returns a stand-in object that implements
+  enough of `Notification` (`onclick`, `close()`, events) for WhatsApp's own code to keep
+  working, and main replays the real click into it so the chat still opens.
+
 ---
 
 ## Troubleshooting
@@ -282,6 +305,7 @@ A few choices worth knowing about, because the obvious alternatives are wrong:
 | Packaging | ✅ `--dir` build verified: runs, tray icon resolves, asar excludes sources |
 | App / tray / notification icon | ✅ Generated set + desktop entry; startup verifies the chain |
 | Start at login | ✅ XDG autostart entry, launches hidden to the tray |
+| Priority alerts (keyword → persistent notification) | ✅ Verified: urgency=2 on D-Bus, no duplicate, click opens the chat |
 | Auto-update | ❌ Not implemented |
 
 Notification **inline reply** is not possible on this target: GNOME's notification daemon
